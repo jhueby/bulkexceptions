@@ -103,6 +103,20 @@ def get_modules(base_url: str, headers: dict) -> dict:
     return resp.json()
 
 
+def validate_modules(base_url: str, headers: dict,
+                     rows: list) -> tuple[set, set]:
+    """Check that module IDs in the CSV exist on the tenant.
+
+    Returns (valid_ids, invalid_ids).
+    """
+    result = get_modules(base_url, headers)
+    remote_ids = {m.get("module_id") for m in result.get("reply", [])}
+    csv_ids = set()
+    for row in rows:
+        csv_ids.update(int(m.strip()) for m in row["MODULES"].split(",") if m.strip())
+    return csv_ids & remote_ids, csv_ids - remote_ids
+
+
 def validate_uploaded_rules(base_url: str, headers: dict,
                             expected_names: list) -> list:
     """Fetch all rules and return which expected names are present."""
@@ -134,6 +148,23 @@ def cmd_upload(args):
         rows = list(reader)
 
     print(f"Loaded {len(rows)} exception(s) from {csv_path}")
+
+    if not args.dry_run:
+        print("Validating module IDs against tenant...")
+        try:
+            valid_ids, invalid_ids = validate_modules(base_url, headers, rows)
+            for mid in sorted(valid_ids):
+                print(f"  MODULE {mid}  OK")
+            for mid in sorted(invalid_ids):
+                print(f"  MODULE {mid}  NOT FOUND on tenant")
+            if invalid_ids:
+                print(f"\nERROR: Module(s) {invalid_ids} not available on this tenant. "
+                      f"Run 'get-modules' to see valid options.", file=sys.stderr)
+                sys.exit(1)
+            print()
+        except requests.RequestException as e:
+            print(f"  Module validation failed: {e}", file=sys.stderr)
+            sys.exit(1)
 
     success = 0
     failed = 0

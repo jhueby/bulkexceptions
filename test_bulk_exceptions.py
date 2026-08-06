@@ -14,6 +14,7 @@ from bulk_exceptions import (
     get_modules,
     load_config,
     upload_exception,
+    validate_modules,
     validate_uploaded_rules,
 )
 
@@ -411,6 +412,66 @@ class TestValidateUploadedRules:
                 "https://api.example.com", {}, ["Rule A"])
         assert found == []
         assert missing == ["Rule A"]
+
+
+# --- validate_modules ---
+
+
+class TestValidateModules:
+    def _mock_modules(self, ids):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "reply": [{"module_id": i} for i in ids]
+        }
+        return mock_resp
+
+    def test_all_modules_valid(self):
+        rows = [{"MODULES": "2"}, {"MODULES": "4"}, {"MODULES": "5"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules([1, 2, 3, 4, 5])):
+            valid, invalid = validate_modules("https://api.example.com", {}, rows)
+        assert valid == {2, 4, 5}
+        assert invalid == set()
+
+    def test_some_modules_invalid(self):
+        rows = [{"MODULES": "2"}, {"MODULES": "99"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules([1, 2, 3])):
+            valid, invalid = validate_modules("https://api.example.com", {}, rows)
+        assert valid == {2}
+        assert invalid == {99}
+
+    def test_all_modules_invalid(self):
+        rows = [{"MODULES": "8"}, {"MODULES": "9"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules([1, 2])):
+            valid, invalid = validate_modules("https://api.example.com", {}, rows)
+        assert valid == set()
+        assert invalid == {8, 9}
+
+    def test_multi_module_row(self):
+        rows = [{"MODULES": "2,4"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules([2, 4])):
+            valid, invalid = validate_modules("https://api.example.com", {}, rows)
+        assert valid == {2, 4}
+        assert invalid == set()
+
+    def test_deduplicates_across_rows(self):
+        rows = [{"MODULES": "2"}, {"MODULES": "2"}, {"MODULES": "2"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules([2])):
+            valid, invalid = validate_modules("https://api.example.com", {}, rows)
+        assert valid == {2}
+        assert invalid == set()
+
+    def test_empty_tenant_modules(self):
+        rows = [{"MODULES": "2"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules([])):
+            valid, invalid = validate_modules("https://api.example.com", {}, rows)
+        assert valid == set()
+        assert invalid == {2}
 
 
 # --- suggested-exceptions.csv integration ---
