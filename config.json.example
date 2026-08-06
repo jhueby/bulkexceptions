@@ -1,0 +1,5 @@
+{
+    "base_url": "https://api-yourfqdn",
+    "api_key": "YOUR_API_KEY",
+    "api_key_id": "YOUR_API_KEY_ID"
+}

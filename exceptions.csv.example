@@ -1,0 +1,4 @@
+NAME,DESCRIPTION,PLATFORM,PATHS,MODULES,SCOPE,PROFILE_IDS,STATUS
+Windows Defender Exception,Allow Windows Defender processes,AGENT_OS_WINDOWS,C:\ProgramData\Microsoft\Windows Defender\Platform\*\MpCmdRun.exe;C:\Program Files\Windows Defender Advanced Threat Protection\SenseTracer.exe,2,PROFILE,48,ENABLED
+CrowdStrike Exception,Allow CrowdStrike sensor,AGENT_OS_WINDOWS,C:\Windows\System32\drivers\CrowdStrike\*,2,TENANT,,ENABLED
+Linux Agent Exception,Allow monitoring agent,AGENT_OS_LINUX,/opt/monitoring/bin/*;/usr/local/bin/agent,2,TENANT,,ENABLED
