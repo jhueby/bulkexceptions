@@ -411,3 +411,91 @@ class TestValidateUploadedRules:
                 "https://api.example.com", {}, ["Rule A"])
         assert found == []
         assert missing == ["Rule A"]
+
+
+# --- suggested-exceptions.csv integration ---
+
+
+class TestSuggestedExceptionsCSV:
+    """Verify suggested-exceptions.csv parses into valid payloads."""
+
+    @pytest.fixture(autouse=True)
+    def load_rows(self):
+        import csv
+        from pathlib import Path
+
+        csv_path = Path(__file__).parent / "suggested-exceptions.csv"
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            self.rows = list(csv.DictReader(f))
+
+    def test_csv_has_eight_rules(self):
+        assert len(self.rows) == 8
+
+    def test_all_rows_build_valid_payloads(self):
+        for row in self.rows:
+            payload = build_exception_payload(row)
+            data = payload["new_exception_data"]
+            assert data["TYPE"] == "LEGACY_EXCEPTIONS"
+            assert data["NAME"]
+            assert data["PLATFORM"] == "AGENT_OS_WINDOWS"
+            assert data["SCOPE"] == "TENANT"
+            assert data["STATUS"] == "ENABLED"
+            assert len(data["CONDITIONS"]["whitelistFolders"]) > 0
+            assert len(data["MODULES"]) > 0
+
+    def test_btp_rules_use_module_4(self):
+        btp_rows = [r for r in self.rows if r["NAME"].startswith("BTP")]
+        assert len(btp_rows) == 4
+        for row in btp_rows:
+            payload = build_exception_payload(row)
+            assert payload["new_exception_data"]["MODULES"] == [4]
+
+    def test_operational_rules_use_module_5(self):
+        op_rows = [r for r in self.rows if r["NAME"].startswith("Operational")]
+        assert len(op_rows) == 3
+        for row in op_rows:
+            payload = build_exception_payload(row)
+            assert payload["new_exception_data"]["MODULES"] == [5]
+
+    def test_scanning_rule_uses_module_2(self):
+        scan_rows = [r for r in self.rows if r["NAME"].startswith("Scanning")]
+        assert len(scan_rows) == 1
+        payload = build_exception_payload(scan_rows[0])
+        assert payload["new_exception_data"]["MODULES"] == [2]
+
+    def test_defender_av_has_eight_paths(self):
+        row = next(r for r in self.rows if r["NAME"] == "BTP Defender AV")
+        payload = build_exception_payload(row)
+        folders = payload["new_exception_data"]["CONDITIONS"]["whitelistFolders"]
+        assert len(folders) == 8
+        assert any("MsMpEng.exe" in p for p in folders)
+
+    def test_rapid7_has_ten_paths(self):
+        row = next(r for r in self.rows if r["NAME"] == "BTP Rapid7")
+        payload = build_exception_payload(row)
+        folders = payload["new_exception_data"]["CONDITIONS"]["whitelistFolders"]
+        assert len(folders) == 10
+        assert any("velociraptor" in p for p in folders)
+
+    def test_beyondtrust_btp_has_two_paths(self):
+        row = next(r for r in self.rows if r["NAME"] == "BTP BeyondTrust")
+        payload = build_exception_payload(row)
+        folders = payload["new_exception_data"]["CONDITIONS"]["whitelistFolders"]
+        assert len(folders) == 2
+
+    def test_management_agents_has_four_paths(self):
+        row = next(r for r in self.rows if r["NAME"] == "BTP Management Agents")
+        payload = build_exception_payload(row)
+        folders = payload["new_exception_data"]["CONDITIONS"]["whitelistFolders"]
+        assert len(folders) == 4
+        assert any("ccmexec" in p for p in folders)
+        assert any("IntuneWindowsAgent" in p for p in folders)
+
+    def test_no_profile_ids_on_tenant_scope(self):
+        for row in self.rows:
+            payload = build_exception_payload(row)
+            assert "PROFILE_IDS" not in payload["new_exception_data"]
+
+    def test_rule_names_are_unique(self):
+        names = [r["NAME"] for r in self.rows]
+        assert len(names) == len(set(names))
