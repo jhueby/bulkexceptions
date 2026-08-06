@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortex XDR Bulk Exceptions</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e1e4ed;
+    --muted: #8b8fa3;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--muted); }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+
+  /* Connection bar */
+  .conn-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 24px; }
+  .conn-bar form { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+  .conn-bar .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+  .conn-bar label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .conn-status { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .conn-dot.on { background: var(--success); }
+  .conn-dot.off { background: var(--danger); }
+
+  /* Inputs */
+  input[type="text"], input[type="password"], input[type="number"], select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 8px 10px; font-size: 13px; width: 100%;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  input[type="file"] { font-size: 13px; color: var(--muted); }
+  input[type="file"]::file-selector-button {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 6px 12px; font-size: 12px; cursor: pointer; margin-right: 8px;
+  }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-ghost { background: transparent; border-color: var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--muted); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tab { padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s; background: none; border-top: none; border-left: none; border-right: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Panels */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .panel-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 12px; }
+  .panel-row .field { display: flex; flex-direction: column; gap: 4px; }
+  .panel-row label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+
+  /* Checkbox */
+  .checkbox-row { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+  .checkbox-row label { font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  /* Results */
+  .result-area { background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
+    max-height: 480px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .result-area:empty::before { content: 'Results will appear here...'; color: var(--muted); }
+
+  /* Table */
+  .rules-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .rules-table th { text-align: left; padding: 8px 10px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; border-bottom: 1px solid var(--border); }
+  .rules-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .rules-table tr:hover td { background: rgba(99, 102, 241, 0.05); }
+  .rules-table .paths { max-width: 320px; word-break: break-all; color: var(--muted); font-size: 11px; }
+  .rules-table input[type="checkbox"] { cursor: pointer; }
+
+  /* Status badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-ok { background: rgba(34,197,94,0.15); color: var(--success); }
+  .badge-fail { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .badge-dry { background: rgba(99,102,241,0.15); color: var(--accent); }
+  .badge-skip { background: rgba(245,158,11,0.15); color: var(--warning); }
+
+  /* Module cards */
+  .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .module-card { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 14px; }
+  .module-card .mod-id { font-size: 11px; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+  .module-card .mod-name { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .module-card .mod-meta { font-size: 11px; color: var(--muted); }
+
+  /* Spinner */
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Flash messages */
+  .flash { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; }
+  .flash-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--success); }
+  .flash-info { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); color: var(--accent); }
+  .flash-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--danger); }
+
+  .delete-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .count { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Cortex XDR Bulk Exceptions</h1>
+  <p class="subtitle">Manage legacy exception rules via the Cortex XDR/XSIAM API</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+  {% endwith %}
+
+  <!-- Connection -->
+  <div class="conn-bar">
+    <div class="conn-status">
+      <span class="conn-dot {{ 'on' if connected else 'off' }}"></span>
+      {% if connected %}Connected to {{ config.base_url }}{% else %}Not connected{% endif %}
+    </div>
+    {% if connected %}
+    <form method="post" action="/disconnect">
+      <button type="submit" class="btn btn-ghost">Disconnect</button>
+    </form>
+    {% else %}
+    <form method="post" action="/connect">
+      <div class="field">
+        <label>Base URL</label>
+        <input type="text" name="base_url" placeholder="https://api-yourfqdn" required>
+      </div>
+      <div class="field">
+        <label>API Key</label>
+        <input type="password" name="api_key" placeholder="API key" required>
+      </div>
+      <div class="field" style="max-width:120px">
+        <label>Key ID</label>
+        <input type="text" name="api_key_id" placeholder="ID" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Connect</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="upload">Upload</button>
+    <button class="tab" data-tab="fetch">Fetch Rules</button>
+    <button class="tab" data-tab="delete">Delete</button>
+    <button class="tab" data-tab="modules">Modules</button>
+  </div>
+
+  <!-- Upload Tab -->
+  <div id="tab-upload" class="tab-content active">
+    <div class="panel">
+      <h2>Upload Exceptions from CSV</h2>
+      <div class="panel-row">
+        <div class="field" style="flex:1">
+          <label>CSV File</label>
+          <input type="file" id="csv-file" accept=".csv">
+        </div>
+      </div>
+      <div class="checkbox-row">
+        <label><input type="checkbox" id="dry-run" checked> Dry run</label>
+        <label><input type="checkbox" id="validate-upload"> Validate after upload</label>
+      </div>
+      <button class="btn btn-primary" id="btn-upload" onclick="doUpload()">Upload</button>
+    </div>
+    <div id="upload-results" class="result-area"></div>
+  </div>
+
+  <!-- Fetch Tab -->
+  <div id="tab-fetch" class="tab-content">
+    <div class="panel">
+      <h2>Fetch Exception Rules</h2>
+      <div class="panel-row">
+        <div class="field" style="flex:1">
+          <label>Filter by Name</label>
+          <input type="text" id="fetch-name" placeholder="e.g. Defender">
+        </div>
+        <div class="field" style="max-width:100px">
+          <label>Offset</label>
+          <input type="number" id="fetch-offset" value="0" min="0">
+        </div>
+        <div class="field" style="max-width:100px">
+          <label>Limit</label>
+          <input type="number" id="fetch-limit" value="100" min="1" max="500">
+        </div>
+        <button class="btn btn-primary" id="btn-fetch" onclick="doFetch()">Fetch</button>
+      </div>
+    </div>
+    <div id="fetch-count" class="count"></div>
+    <div id="fetch-results" style="overflow-x:auto"></div>
+  </div>
+
+  <!-- Delete Tab -->
+  <div id="tab-delete" class="tab-content">
+    <div class="panel">
+      <h2>Delete Exception Rules</h2>
+      <div class="panel-row">
+        <div class="field" style="flex:1">
+          <label>Rule IDs (comma-separated)</label>
+          <input type="text" id="delete-ids" placeholder="101, 102, 103">
+        </div>
+        <button class="btn btn-danger" id="btn-delete" onclick="doDelete()">Delete</button>
+      </div>
+    </div>
+    <div id="delete-results" class="result-area"></div>
+  </div>
+
+  <!-- Modules Tab -->
+  <div id="tab-modules" class="tab-content">
+    <div class="panel">
+      <h2>Available Exception Modules</h2>
+      <button class="btn btn-primary" id="btn-modules" onclick="doModules()">Load Modules</button>
+    </div>
+    <div id="modules-results" class="module-grid"></div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (loading) {
+    btn.disabled = true;
+    btn._text = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Working...';
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = btn._text;
+  }
+}
+
+async function doUpload() {
+  const file = document.getElementById('csv-file').files[0];
+  if (!file) { alert('Select a CSV file first.'); return; }
+
+  const dryRun = document.getElementById('dry-run').checked;
+  const validate = document.getElementById('validate-upload').checked;
+  const form = new FormData();
+  form.append('csv_file', file);
+  form.append('dry_run', dryRun ? 'true' : 'false');
+  form.append('validate', validate ? 'true' : 'false');
+
+  setLoading('btn-upload', true);
+  const el = document.getElementById('upload-results');
+  el.textContent = '';
+
+  try {
+    const resp = await fetch('/api/upload', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.error) { el.textContent = 'ERROR: ' + data.error; return; }
+
+    let out = `${dryRun ? 'DRY RUN' : 'UPLOAD'} — ${data.total} rule(s)\n${'='.repeat(50)}\n\n`;
+    for (const r of data.results) {
+      const badge = r.status === 'OK' ? '✓' : r.status === 'DRY' ? '○' : r.status === 'SKIP' ? '⚠' : '✗';
+      out += `${badge} [${r.row}] ${r.status}  ${r.name}\n`;
+      if (r.detail && typeof r.detail === 'string') out += `    ${r.detail}\n`;
+      if (r.payload) out += JSON.stringify(r.payload, null, 2) + '\n';
+      out += '\n';
+    }
+    if (data.validation) {
+      out += `\nVALIDATION\n${'-'.repeat(30)}\n`;
+      if (data.validation.found) data.validation.found.forEach(n => out += `  ✓ VERIFIED  ${n}\n`);
+      if (data.validation.missing) data.validation.missing.forEach(n => out += `  ✗ MISSING   ${n}\n`);
+    }
+    el.textContent = out;
+  } catch (e) {
+    el.textContent = 'Request failed: ' + e.message;
+  } finally {
+    setLoading('btn-upload', false);
+  }
+}
+
+async function doFetch() {
+  const name = document.getElementById('fetch-name').value;
+  const offset = document.getElementById('fetch-offset').value;
+  const limit = document.getElementById('fetch-limit').value;
+  const params = new URLSearchParams({ name, offset, limit });
+
+  setLoading('btn-fetch', true);
+  const el = document.getElementById('fetch-results');
+  const countEl = document.getElementById('fetch-count');
+  el.innerHTML = '';
+  countEl.textContent = '';
+
+  try {
+    const resp = await fetch('/api/fetch?' + params);
+    const data = await resp.json();
+    if (data.error) { el.innerHTML = '<div class="result-area">' + data.error + '</div>'; return; }
+
+    const rules = data.data || [];
+    countEl.textContent = `Showing ${rules.length} of ${data.total_count ?? '?'} rules`;
+
+    if (rules.length === 0) { el.innerHTML = '<div class="result-area">No rules found.</div>'; return; }
+
+    let html = '<table class="rules-table"><thead><tr>';
+    html += '<th>ID</th><th>Name</th><th>Platform</th><th>Module</th><th>Scope</th><th>Status</th><th>Paths</th>';
+    html += '</tr></thead><tbody>';
+    for (const r of rules) {
+      const paths = (r.CONDITIONS?.whitelistFolders || []).join('; ');
+      html += `<tr>
+        <td>${r.RULE_ID ?? ''}</td>
+        <td>${esc(r.NAME || '')}</td>
+        <td>${esc(r.PLATFORM || '')}</td>
+        <td>${(r.MODULES || []).join(', ')}</td>
+        <td>${esc(r.SCOPE || '')}</td>
+        <td>${esc(r.STATUS || '')}</td>
+        <td class="paths">${esc(paths)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div class="result-area">Request failed: ' + e.message + '</div>';
+  } finally {
+    setLoading('btn-fetch', false);
+  }
+}
+
+async function doDelete() {
+  const idsStr = document.getElementById('delete-ids').value.trim();
+  if (!idsStr) { alert('Enter rule IDs to delete.'); return; }
+
+  const ids = idsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+  if (ids.length === 0) { alert('No valid rule IDs.'); return; }
+  if (!confirm(`Delete ${ids.length} rule(s): ${ids.join(', ')}?`)) return;
+
+  setLoading('btn-delete', true);
+  const el = document.getElementById('delete-results');
+  el.textContent = '';
+
+  try {
+    const resp = await fetch('/api/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rule_ids: ids }),
+    });
+    const data = await resp.json();
+    if (data.error) { el.textContent = 'ERROR: ' + data.error; return; }
+    el.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.textContent = 'Request failed: ' + e.message;
+  } finally {
+    setLoading('btn-delete', false);
+  }
+}
+
+async function doModules() {
+  setLoading('btn-modules', true);
+  const el = document.getElementById('modules-results');
+  el.innerHTML = '';
+
+  try {
+    const resp = await fetch('/api/modules');
+    const data = await resp.json();
+    if (data.error) { el.innerHTML = '<div class="result-area">' + data.error + '</div>'; return; }
+
+    const modules = Array.isArray(data) ? data : [];
+    if (modules.length === 0) { el.innerHTML = '<div class="result-area">No modules found.</div>'; return; }
+
+    let html = '';
+    for (const m of modules) {
+      const platforms = (m.platforms || []).join(', ');
+      const conditions = Object.keys(m.conditions_definition || {}).join(', ');
+      html += `<div class="module-card">
+        <div class="mod-id">MODULE ${m.module_id}</div>
+        <div class="mod-name">${esc(m.pretty_name || m.title || 'Unknown')}</div>
+        <div class="mod-meta">Platforms: ${esc(platforms) || 'N/A'}</div>
+        ${conditions ? '<div class="mod-meta">Conditions: ' + esc(conditions) + '</div>' : ''}
+      </div>`;
+    }
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div class="result-area">Request failed: ' + e.message + '</div>';
+  } finally {
+    setLoading('btn-modules', false);
+  }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>

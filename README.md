@@ -1,6 +1,6 @@
 # Bulk Exceptions for Cortex XDR/XSIAM
 
-CLI tool for managing legacy exception rules in Cortex XDR/XSIAM via the public API.
+Manage legacy exception rules in Cortex XDR/XSIAM via the public API. Available as a CLI tool or a Docker-based web GUI.
 
 ## Features
 
@@ -10,8 +10,11 @@ CLI tool for managing legacy exception rules in Cortex XDR/XSIAM via the public 
 - **Fetch** existing exception rules with filtering and pagination
 - **Delete** exception rules by ID
 - **Get Modules** to list available exception modules and their schemas
+- **Web GUI** — browser-based interface via Docker (same functionality as the CLI)
 
-## Setup
+## Option 1: CLI
+
+### Setup
 
 ```bash
 pip install requests
@@ -26,8 +29,6 @@ Copy `config.json.example` to `config.json` and fill in your credentials:
     "api_key_id": "YOUR_API_KEY_ID"
 }
 ```
-
-## Usage
 
 ### Upload exceptions from CSV
 
@@ -61,6 +62,47 @@ python3 bulk_exceptions.py get-modules
 python3 bulk_exceptions.py get-modules --json
 ```
 
+## Option 2: Docker GUI
+
+A browser-based interface that wraps the same API functions as the CLI.
+
+### Quick start
+
+```bash
+docker compose up --build
+```
+
+Then open [http://localhost:5000](http://localhost:5000).
+
+### What you can do in the GUI
+
+1. **Connect** — enter your Cortex XDR base URL, API key, and key ID
+2. **Upload** — select a CSV file, toggle dry run and post-upload validation
+3. **Fetch Rules** — browse existing rules with name filtering and pagination
+4. **Delete** — remove rules by ID
+5. **Modules** — view available exception modules on your tenant
+
+### Configuration
+
+| Environment variable | Default | Description |
+|---|---|---|
+| `SECRET_KEY` | random | Flask session secret (set a fixed value in production) |
+| `PORT` | `5000` | Port the web server listens on |
+
+### Run without Docker Compose
+
+```bash
+docker build -t bulkexceptions .
+docker run -p 5000:5000 -e SECRET_KEY=your-secret bulkexceptions
+```
+
+### Run locally without Docker
+
+```bash
+pip install -r requirements.txt
+python3 app.py
+```
+
 ## Included Exception Sets
 
 - **`exceptions.csv.example`** — Template with sample rules
@@ -84,5 +126,5 @@ See `exceptions.csv.example` for a template. Required columns:
 ## Tests
 
 ```bash
-python3 -m pytest test_bulk_exceptions.py -v
+python3 -m pytest test_bulk_exceptions.py test_app.py -v
 ```
