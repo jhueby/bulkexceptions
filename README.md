@@ -5,7 +5,8 @@ CLI tool for managing legacy exception rules in Cortex XDR/XSIAM via the public 
 ## Features
 
 - **Upload** exception rules in bulk from a CSV file
-- **Validate** uploaded rules exist on the tenant after upload
+- **Module validation** — automatically verifies CSV module IDs exist on the tenant before uploading
+- **Post-upload validation** — fetches rules after upload to confirm they were created
 - **Fetch** existing exception rules with filtering and pagination
 - **Delete** exception rules by ID
 - **Get Modules** to list available exception modules and their schemas
@@ -37,7 +38,7 @@ python3 bulk_exceptions.py upload exceptions.csv --validate
 python3 bulk_exceptions.py upload exceptions.csv --delay 1.0
 ```
 
-The `--validate` flag fetches rules from the tenant after upload to confirm they were created.
+Before uploading, the tool calls `get-modules` to verify that all module IDs in the CSV exist on the tenant. If any module ID is invalid, the upload is aborted with an error. The `--validate` flag additionally fetches rules after upload to confirm they were created.
 
 ### Fetch exception rules
 
@@ -59,6 +60,11 @@ python3 bulk_exceptions.py delete 101,102,103
 python3 bulk_exceptions.py get-modules
 python3 bulk_exceptions.py get-modules --json
 ```
+
+## Included Exception Sets
+
+- **`exceptions.csv.example`** — Template with sample rules
+- **`suggested-exceptions.csv`** — 8 rules for endpoint NICE-5CG40406JD to resolve cross-scanning loop between Cortex XDR, Defender AV, Rapid7, BeyondTrust, and Sysmon (sourced from `suggested-exceptions.md`)
 
 ## CSV Format
 
