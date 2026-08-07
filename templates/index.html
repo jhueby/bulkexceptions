@@ -277,7 +277,29 @@ async function doUpload() {
   try {
     const resp = await fetch('/api/upload', { method: 'POST', body: form });
     const data = await resp.json();
-    if (data.error) { el.textContent = 'ERROR: ' + data.error; return; }
+    if (data.error) {
+      let msg = 'ERROR: ' + data.error + '\n';
+      if (data.affected_rows) {
+        msg += '\nAFFECTED ROWS\n' + '-'.repeat(40) + '\n';
+        for (const [mid, rows] of Object.entries(data.affected_rows)) {
+          const rowList = rows.map(r => `row ${r.row} (${r.name})`).join(', ');
+          msg += `  Module ${mid} — used by: ${rowList}\n`;
+          if (data.suggestions && data.suggestions[mid] && data.suggestions[mid].length) {
+            const hints = data.suggestions[mid].map(s => `${s.module_id} (${s.name})`).join(', ');
+            msg += `    Closest available: ${hints}\n`;
+          }
+        }
+      }
+      if (data.available_modules) {
+        msg += '\nAVAILABLE MODULES ON THIS TENANT\n' + '-'.repeat(40) + '\n';
+        for (const m of data.available_modules) {
+          const plat = (m.platforms || []).join(', ');
+          msg += `  [${m.module_id}] ${m.name}` + (plat ? ` — ${plat}` : '') + '\n';
+        }
+      }
+      el.textContent = msg;
+      return;
+    }
 
     let out = `${dryRun ? 'DRY RUN' : 'UPLOAD'} — ${data.total} rule(s)\n${'='.repeat(50)}\n\n`;
     for (const r of data.results) {

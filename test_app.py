@@ -121,14 +121,33 @@ class TestApiUpload:
 
     def test_module_validation_failure_blocks_upload(self, connected_client):
         csv = "NAME,PATHS,MODULES\nTest,C:\\foo,99\n"
-        with patch("app.validate_modules", return_value=(set(), {99})):
+        mod_result = {
+            "valid_ids": set(),
+            "invalid_ids": {99},
+            "available_modules": [{"module_id": 2, "pretty_name": "Exploit", "platforms": ["windows"]}],
+            "affected_rows": {99: [{"row": 1, "name": "Test"}]},
+            "suggestions": {99: [{"module_id": 2, "pretty_name": "Exploit"}]},
+        }
+        with patch("app.validate_modules", return_value=mod_result):
             resp = self._upload(connected_client, csv, dry_run="false")
+        data = resp.get_json()
         assert resp.status_code == 400
-        assert "99" in resp.get_json()["error"]
+        assert "1 module" in data["error"]
+        assert data["invalid_modules"] == [99]
+        assert len(data["available_modules"]) == 1
+        assert data["affected_rows"]["99"][0]["name"] == "Test"
+        assert data["suggestions"]["99"][0]["module_id"] == 2
 
     def test_upload_success(self, connected_client):
         csv = "NAME,DESCRIPTION,PLATFORM,PATHS,MODULES,SCOPE,PROFILE_IDS,STATUS\nTest,desc,AGENT_OS_WINDOWS,C:\\foo,2,TENANT,,ENABLED\n"
-        with patch("app.validate_modules", return_value=({2}, set())), \
+        mod_result = {
+            "valid_ids": {2},
+            "invalid_ids": set(),
+            "available_modules": [],
+            "affected_rows": {},
+            "suggestions": {},
+        }
+        with patch("app.validate_modules", return_value=mod_result), \
              patch("app.upload_exception", return_value={"reply": {"id": 1}}):
             resp = self._upload(connected_client, csv, dry_run="false")
         result = resp.get_json()

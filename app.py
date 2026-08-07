@@ -121,13 +121,33 @@ def api_upload():
 
     if not dry_run:
         try:
-            valid_ids, invalid_ids = validate_modules(config["base_url"], headers, rows)
-            if invalid_ids:
+            mod_result = validate_modules(config["base_url"], headers, rows)
+            if mod_result["invalid_ids"]:
+                available_summary = [
+                    {"module_id": m.get("module_id"),
+                     "name": m.get("pretty_name", m.get("title", "Unknown")),
+                     "platforms": m.get("platforms", [])}
+                    for m in mod_result["available_modules"]
+                ]
+                suggestions = {
+                    str(mid): [
+                        {"module_id": s.get("module_id"),
+                         "name": s.get("pretty_name", s.get("title", "Unknown"))}
+                        for s in slist
+                    ]
+                    for mid, slist in mod_result["suggestions"].items()
+                }
+                affected = {
+                    str(mid): rows_list
+                    for mid, rows_list in mod_result["affected_rows"].items()
+                }
                 return jsonify({
-                    "error": f"Module(s) {sorted(invalid_ids)} not available on this tenant. "
-                             f"Use Get Modules to see valid options.",
-                    "valid_modules": sorted(valid_ids),
-                    "invalid_modules": sorted(invalid_ids),
+                    "error": f"{len(mod_result['invalid_ids'])} module(s) not available on this tenant.",
+                    "valid_modules": sorted(mod_result["valid_ids"]),
+                    "invalid_modules": sorted(mod_result["invalid_ids"]),
+                    "available_modules": available_summary,
+                    "affected_rows": affected,
+                    "suggestions": suggestions,
                 }), 400
         except Exception as e:
             return jsonify({"error": f"Module validation failed: {e}"}), 500

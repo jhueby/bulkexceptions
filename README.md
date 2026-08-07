@@ -5,7 +5,7 @@ Manage legacy exception rules in Cortex XDR/XSIAM via the public API. Available 
 ## Features
 
 - **Upload** exception rules in bulk from a CSV file
-- **Module validation** — automatically verifies CSV module IDs exist on the tenant before uploading
+- **Module validation** — automatically verifies CSV module IDs exist on the tenant before uploading; on failure shows which CSV rows are affected, suggests the closest valid modules, and lists all available modules on the tenant
 - **Post-upload validation** — fetches rules after upload to confirm they were created
 - **Fetch** existing exception rules with filtering and pagination
 - **Delete** exception rules by ID
@@ -30,6 +30,8 @@ Copy `config.json.example` to `config.json` and fill in your credentials:
 }
 ```
 
+> **Note:** This tool requires a **Standard** API key. Advanced API keys use HMAC-based authentication which is not supported. You can check the key type in Cortex XDR under **Settings → Configurations → Integrations → API Keys**.
+
 ### Upload exceptions from CSV
 
 ```bash
@@ -39,7 +41,13 @@ python3 bulk_exceptions.py upload exceptions.csv --validate
 python3 bulk_exceptions.py upload exceptions.csv --delay 1.0
 ```
 
-Before uploading, the tool calls `get-modules` to verify that all module IDs in the CSV exist on the tenant. If any module ID is invalid, the upload is aborted with an error. The `--validate` flag additionally fetches rules after upload to confirm they were created.
+Before uploading, the tool calls `get-modules` to verify that all module IDs in the CSV exist on the tenant. If any module ID is invalid, the upload is aborted with an error that shows:
+
+- Which CSV rows reference each invalid module
+- The closest available modules by ID (suggestions)
+- A full list of available modules on the tenant
+
+The `--validate` flag additionally fetches rules after upload to confirm they were created.
 
 ### Fetch exception rules
 
@@ -76,7 +84,7 @@ Then open [http://localhost:5000](http://localhost:5000).
 
 ### What you can do in the GUI
 
-1. **Connect** — enter your Cortex XDR base URL, API key, and key ID
+1. **Connect** — enter your Cortex XDR base URL, API key (Standard, not Advanced), and key ID
 2. **Upload** — select a CSV file, toggle dry run and post-upload validation
 3. **Fetch Rules** — browse existing rules with name filtering and pagination
 4. **Delete** — remove rules by ID

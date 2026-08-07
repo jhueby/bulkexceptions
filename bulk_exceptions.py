@@ -103,18 +103,52 @@ def get_modules(base_url: str, headers: dict) -> dict:
     return resp.json()
 
 
+def suggest_modules(invalid_id: int, available_modules: list,
+                    n: int = 3) -> list:
+    """Return up to n available modules sorted by ID proximity to invalid_id."""
+    if not available_modules:
+        return []
+    ranked = sorted(available_modules, key=lambda m: abs(m["module_id"] - invalid_id))
+    return ranked[:n]
+
+
 def validate_modules(base_url: str, headers: dict,
-                     rows: list) -> tuple[set, set]:
+                     rows: list) -> dict:
     """Check that module IDs in the CSV exist on the tenant.
 
-    Returns (valid_ids, invalid_ids).
+    Returns a dict with keys:
+      valid_ids        — set of module IDs that exist on the tenant
+      invalid_ids      — set of module IDs NOT found on the tenant
+      available_modules — full module list from the API
+      affected_rows    — {invalid_id: [{"row": int, "name": str}, ...]}
+      suggestions      — {invalid_id: [closest module dicts]}
     """
     result = get_modules(base_url, headers)
-    remote_ids = {m.get("module_id") for m in result.get("reply", [])}
+    available = result.get("reply", [])
+    remote_ids = {m.get("module_id") for m in available}
     csv_ids = set()
     for row in rows:
         csv_ids.update(int(m.strip()) for m in row["MODULES"].split(",") if m.strip())
-    return csv_ids & remote_ids, csv_ids - remote_ids
+
+    valid_ids = csv_ids & remote_ids
+    invalid_ids = csv_ids - remote_ids
+
+    affected_rows = {}
+    for i, row in enumerate(rows, 1):
+        row_modules = {int(m.strip()) for m in row["MODULES"].split(",") if m.strip()}
+        for mid in row_modules & invalid_ids:
+            affected_rows.setdefault(mid, []).append(
+                {"row": i, "name": row.get("NAME", f"row {i}")})
+
+    suggestions = {mid: suggest_modules(mid, available) for mid in invalid_ids}
+
+    return {
+        "valid_ids": valid_ids,
+        "invalid_ids": invalid_ids,
+        "available_modules": available,
+        "affected_rows": affected_rows,
+        "suggestions": suggestions,
+    }
 
 
 def validate_uploaded_rules(base_url: str, headers: dict,
@@ -152,14 +186,28 @@ def cmd_upload(args):
     if not args.dry_run:
         print("Validating module IDs against tenant...")
         try:
-            valid_ids, invalid_ids = validate_modules(base_url, headers, rows)
-            for mid in sorted(valid_ids):
+            result = validate_modules(base_url, headers, rows)
+            for mid in sorted(result["valid_ids"]):
                 print(f"  MODULE {mid}  OK")
-            for mid in sorted(invalid_ids):
+            for mid in sorted(result["invalid_ids"]):
                 print(f"  MODULE {mid}  NOT FOUND on tenant")
-            if invalid_ids:
-                print(f"\nERROR: Module(s) {invalid_ids} not available on this tenant. "
-                      f"Run 'get-modules' to see valid options.", file=sys.stderr)
+            if result["invalid_ids"]:
+                print(f"\nERROR: {len(result['invalid_ids'])} module(s) not available "
+                      f"on this tenant.\n", file=sys.stderr)
+                for mid in sorted(result["invalid_ids"]):
+                    affected = result["affected_rows"].get(mid, [])
+                    row_list = ", ".join(f"row {a['row']} ({a['name']})" for a in affected)
+                    print(f"  MODULE {mid} — used by: {row_list}")
+                    suggestions = result["suggestions"].get(mid, [])
+                    if suggestions:
+                        hint = ", ".join(
+                            f"{s['module_id']} ({s.get('pretty_name', s.get('title', '?'))})"
+                            for s in suggestions)
+                        print(f"    Closest available: {hint}")
+                print(f"\nAvailable modules on this tenant:")
+                for m in result["available_modules"]:
+                    name = m.get("pretty_name", m.get("title", "Unknown"))
+                    print(f"  [{m.get('module_id')}] {name}")
                 sys.exit(1)
             print()
         except requests.RequestException as e:

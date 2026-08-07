@@ -13,6 +13,7 @@ from bulk_exceptions import (
     fetch_exceptions,
     get_modules,
     load_config,
+    suggest_modules,
     upload_exception,
     validate_modules,
     validate_uploaded_rules,
@@ -418,60 +419,129 @@ class TestValidateUploadedRules:
 
 
 class TestValidateModules:
-    def _mock_modules(self, ids):
+    def _mock_modules(self, modules):
+        """Accept a list of ints (IDs only) or dicts (full module objects)."""
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "reply": [{"module_id": i} for i in ids]
-        }
+        reply = []
+        for m in modules:
+            if isinstance(m, int):
+                reply.append({"module_id": m})
+            else:
+                reply.append(m)
+        mock_resp.json.return_value = {"reply": reply}
         return mock_resp
 
     def test_all_modules_valid(self):
         rows = [{"MODULES": "2"}, {"MODULES": "4"}, {"MODULES": "5"}]
         with patch("bulk_exceptions.requests.post",
                    return_value=self._mock_modules([1, 2, 3, 4, 5])):
-            valid, invalid = validate_modules("https://api.example.com", {}, rows)
-        assert valid == {2, 4, 5}
-        assert invalid == set()
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert result["valid_ids"] == {2, 4, 5}
+        assert result["invalid_ids"] == set()
+        assert result["affected_rows"] == {}
 
     def test_some_modules_invalid(self):
         rows = [{"MODULES": "2"}, {"MODULES": "99"}]
         with patch("bulk_exceptions.requests.post",
                    return_value=self._mock_modules([1, 2, 3])):
-            valid, invalid = validate_modules("https://api.example.com", {}, rows)
-        assert valid == {2}
-        assert invalid == {99}
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert result["valid_ids"] == {2}
+        assert result["invalid_ids"] == {99}
 
     def test_all_modules_invalid(self):
         rows = [{"MODULES": "8"}, {"MODULES": "9"}]
         with patch("bulk_exceptions.requests.post",
                    return_value=self._mock_modules([1, 2])):
-            valid, invalid = validate_modules("https://api.example.com", {}, rows)
-        assert valid == set()
-        assert invalid == {8, 9}
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert result["valid_ids"] == set()
+        assert result["invalid_ids"] == {8, 9}
 
     def test_multi_module_row(self):
         rows = [{"MODULES": "2,4"}]
         with patch("bulk_exceptions.requests.post",
                    return_value=self._mock_modules([2, 4])):
-            valid, invalid = validate_modules("https://api.example.com", {}, rows)
-        assert valid == {2, 4}
-        assert invalid == set()
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert result["valid_ids"] == {2, 4}
+        assert result["invalid_ids"] == set()
 
     def test_deduplicates_across_rows(self):
         rows = [{"MODULES": "2"}, {"MODULES": "2"}, {"MODULES": "2"}]
         with patch("bulk_exceptions.requests.post",
                    return_value=self._mock_modules([2])):
-            valid, invalid = validate_modules("https://api.example.com", {}, rows)
-        assert valid == {2}
-        assert invalid == set()
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert result["valid_ids"] == {2}
+        assert result["invalid_ids"] == set()
 
     def test_empty_tenant_modules(self):
         rows = [{"MODULES": "2"}]
         with patch("bulk_exceptions.requests.post",
                    return_value=self._mock_modules([])):
-            valid, invalid = validate_modules("https://api.example.com", {}, rows)
-        assert valid == set()
-        assert invalid == {2}
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert result["valid_ids"] == set()
+        assert result["invalid_ids"] == {2}
+
+    def test_affected_rows_maps_invalid_to_rows(self):
+        rows = [
+            {"NAME": "Rule A", "MODULES": "2"},
+            {"NAME": "Rule B", "MODULES": "99"},
+            {"NAME": "Rule C", "MODULES": "99,2"},
+        ]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules([1, 2, 3])):
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert 99 in result["affected_rows"]
+        affected = result["affected_rows"][99]
+        assert len(affected) == 2
+        assert affected[0] == {"row": 2, "name": "Rule B"}
+        assert affected[1] == {"row": 3, "name": "Rule C"}
+
+    def test_suggestions_returns_closest_modules(self):
+        modules = [
+            {"module_id": 1, "pretty_name": "Malware"},
+            {"module_id": 2, "pretty_name": "Exploit"},
+            {"module_id": 5, "pretty_name": "Restrictions"},
+        ]
+        rows = [{"NAME": "Rule A", "MODULES": "4"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules(modules)):
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert 4 in result["suggestions"]
+        suggested_ids = [s["module_id"] for s in result["suggestions"][4]]
+        assert suggested_ids[0] == 5
+
+    def test_available_modules_returned(self):
+        modules = [
+            {"module_id": 1, "pretty_name": "Malware"},
+            {"module_id": 2, "pretty_name": "Exploit"},
+        ]
+        rows = [{"NAME": "Rule A", "MODULES": "99"}]
+        with patch("bulk_exceptions.requests.post",
+                   return_value=self._mock_modules(modules)):
+            result = validate_modules("https://api.example.com", {}, rows)
+        assert len(result["available_modules"]) == 2
+        assert result["available_modules"][0]["module_id"] == 1
+
+
+class TestSuggestModules:
+    def test_returns_closest_by_id(self):
+        modules = [
+            {"module_id": 1}, {"module_id": 3}, {"module_id": 10},
+        ]
+        result = suggest_modules(4, modules, n=2)
+        assert [m["module_id"] for m in result] == [3, 1]
+
+    def test_returns_empty_for_no_modules(self):
+        assert suggest_modules(5, []) == []
+
+    def test_limits_to_n(self):
+        modules = [{"module_id": i} for i in range(1, 20)]
+        result = suggest_modules(10, modules, n=3)
+        assert len(result) == 3
+
+    def test_exact_match_comes_first(self):
+        modules = [{"module_id": 1}, {"module_id": 5}, {"module_id": 10}]
+        result = suggest_modules(5, modules)
+        assert result[0]["module_id"] == 5
 
 
 # --- suggested-exceptions.csv integration ---
