@@ -1,33 +1,33 @@
-# Recommended Cortex XDR/XSIAM Exceptions for Claude Code Generated Tools
+# Recommended Cortex XDR/XSIAM Exceptions for AI Coding Tools
 
-Recommended legacy exception rules for environments running tools built and operated by Claude Code. Scoped to macOS and Linux only.
+Recommended legacy exception rules for environments running AI-assisted coding tools. Scoped to macOS and Linux only.
 
 ---
 
-## Claude Code Runtime
+## AI Coding Tool Runtime
 
 | Name | Platform | Paths | Module | Notes |
 |---|---|---|---|---|
-| Claude Code CLI | macOS | `/Users/*/.claude/*` | 2 | Claude Code config, worktrees, session data |
-| Claude Code CLI | Linux | `/home/*/.claude/*` | 2 | Claude Code config, worktrees, session data |
-| Claude Code Binary (npm global) | macOS | `/Users/*/lib/node_modules/@anthropic-ai/claude-code/*` | 2 | npm global install path |
-| Claude Code Binary (npm global) | Linux | `/usr/lib/node_modules/@anthropic-ai/claude-code/*` | 2 | npm global install path |
-| Claude Code Standalone | macOS | `/usr/local/bin/claude` | 2 | Standalone binary |
-| Claude Code Standalone | Linux | `/usr/local/bin/claude` | 2 | Standalone binary |
+| AI Coding Tool CLI | macOS | `/Users/*/.claude/*` | 2 | Config, worktrees, session data |
+| AI Coding Tool CLI | Linux | `/home/*/.claude/*` | 2 | Config, worktrees, session data |
+| AI Coding Tool Binary (npm global) | macOS | `/Users/*/lib/node_modules/@anthropic-ai/claude-code/*` | 2 | npm global install path |
+| AI Coding Tool Binary (npm global) | Linux | `/usr/lib/node_modules/@anthropic-ai/claude-code/*` | 2 | npm global install path |
+| AI Coding Tool Standalone | macOS | `/usr/local/bin/claude` | 2 | Standalone binary |
+| AI Coding Tool Standalone | Linux | `/usr/local/bin/claude` | 2 | Standalone binary |
 
 ## Node.js Runtime
 
 | Name | Platform | Paths | Module | Notes |
 |---|---|---|---|---|
-| Node.js Runtime | macOS | `/usr/local/bin/node;/usr/local/lib/node_modules/*` | 2 | Required by Claude Code CLI |
-| Node.js Runtime | Linux | `/usr/bin/node;/usr/lib/node_modules/*` | 2 | Required by Claude Code CLI |
+| Node.js Runtime | macOS | `/usr/local/bin/node;/usr/local/lib/node_modules/*` | 2 | Required by AI coding tool CLI |
+| Node.js Runtime | Linux | `/usr/bin/node;/usr/lib/node_modules/*` | 2 | Required by AI coding tool CLI |
 
 ## Git Operations
 
 | Name | Platform | Paths | Module | Notes |
 |---|---|---|---|---|
-| Git | macOS | `/usr/bin/git;/usr/local/bin/git;/Library/Developer/CommandLineTools/usr/bin/git` | 2 | Used by Claude Code for worktrees and version control |
-| Git | Linux | `/usr/bin/git;/usr/lib/git-core/*` | 2 | Used by Claude Code for worktrees and version control |
+| Git | macOS | `/usr/bin/git;/usr/local/bin/git;/Library/Developer/CommandLineTools/usr/bin/git` | 2 | Used for worktrees and version control |
+| Git | Linux | `/usr/bin/git;/usr/lib/git-core/*` | 2 | Used for worktrees and version control |
 
 ## MCP Servers
 
@@ -54,7 +54,7 @@ To convert these into a CSV for bulk upload, use the column format from `excepti
 
 ```
 NAME,DESCRIPTION,PLATFORM,PATHS,MODULES,SCOPE,PROFILE_IDS,STATUS
-Claude Code CLI,Claude Code config and session data,AGENT_OS_MACOS,/Users/*/.claude/*,2,TENANT,,ENABLED
+AI Coding Tool CLI,Config and session data,AGENT_OS_MACOS,/Users/*/.claude/*,2,TENANT,,ENABLED
 ```
 
 Then upload:
