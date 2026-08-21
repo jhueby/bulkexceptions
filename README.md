@@ -77,10 +77,15 @@ A browser-based interface that wraps the same API functions as the CLI.
 ### Quick start
 
 ```bash
+export SECRET_KEY=$(openssl rand -hex 32)   # required
 docker compose up --build
 ```
 
 Then open [http://localhost:5000](http://localhost:5000).
+
+Tenant API credentials you enter are held **server-side** for the session
+(the browser only receives an opaque, HttpOnly, SameSite=Strict session
+cookie), and all state-changing requests are CSRF-protected.
 
 ### What you can do in the GUI
 
@@ -94,22 +99,30 @@ Then open [http://localhost:5000](http://localhost:5000).
 
 | Environment variable | Default | Description |
 |---|---|---|
-| `SECRET_KEY` | random | Flask session secret (set a fixed value in production) |
+| `SECRET_KEY` | *(required)* | Flask session secret. Required under Docker Compose; falls back to a random per-process key only for single-process local dev |
 | `PORT` | `5000` | Port the web server listens on |
+| `HOST` | `127.0.0.1` | Interface the local dev server binds to (Docker/gunicorn binds `0.0.0.0` inside the container) |
+| `BULKEXC_SECURE_COOKIE` | `0` | Set to `1` to mark the session cookie `Secure` when serving over HTTPS |
+| `SESSION_FILE_DIR` | temp dir | Where server-side session files are stored |
 
 ### Run without Docker Compose
 
 ```bash
 docker build -t bulkexceptions .
-docker run -p 5000:5000 -e SECRET_KEY=your-secret bulkexceptions
+docker run -p 5000:5000 -e SECRET_KEY=$(openssl rand -hex 32) bulkexceptions
 ```
 
 ### Run locally without Docker
 
 ```bash
 pip install -r requirements.txt
+export SECRET_KEY=$(openssl rand -hex 32)   # optional for local dev
 python3 app.py
 ```
+
+The dev server binds to `127.0.0.1` by default. Never enable `FLASK_DEBUG=1`
+on a non-loopback interface — the Werkzeug debugger allows remote code
+execution.
 
 ## Included Exception Sets
 

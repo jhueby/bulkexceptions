@@ -4,8 +4,12 @@ import csv
 import io
 import json
 import os
+import secrets
+import tempfile
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
+from flask_session import Session
+from flask_wtf import CSRFProtect
 
 from bulk_exceptions import (
     build_exception_payload,
@@ -19,7 +23,43 @@ from bulk_exceptions import (
 )
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", os.urandom(32))
+
+# Secret key. A stable value is required so the signed session-id cookie
+# survives restarts and is valid across gunicorn workers. Set SECRET_KEY in the
+# environment for any real or multi-worker deployment (docker-compose enforces
+# this). Fall back to a random per-process key only for single-process local
+# dev; there is deliberately no weak hardcoded default.
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    app.logger.warning(
+        "SECRET_KEY is not set - generating a random per-process key. Sessions "
+        "will not persist across restarts and will break with multiple workers. "
+        "Set SECRET_KEY for any real deployment."
+    )
+    _secret = secrets.token_hex(32)
+app.secret_key = _secret
+
+# Server-side sessions: tenant API credentials are stored on the server, so the
+# browser only ever holds an opaque signed session id - never the API key
+# itself. (Flask's default cookie sessions are signed but NOT encrypted, i.e.
+# base64-readable by anyone with the cookie.)
+app.config.update(
+    SESSION_TYPE="filesystem",
+    SESSION_FILE_DIR=os.environ.get(
+        "SESSION_FILE_DIR", os.path.join(tempfile.gettempdir(), "bulkexc_sessions")
+    ),
+    SESSION_PERMANENT=False,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Strict",
+    # Set BULKEXC_SECURE_COOKIE=1 when serving over HTTPS.
+    SESSION_COOKIE_SECURE=os.environ.get("BULKEXC_SECURE_COOKIE", "0") == "1",
+)
+Session(app)
+
+# CSRF protection for all state-changing requests. HTML form posts carry a
+# hidden csrf_token field; the fetch()-based API calls send an X-CSRFToken
+# header (see templates/index.html).
+csrf = CSRFProtect(app)
 
 
 def get_config():
@@ -216,5 +256,10 @@ def api_delete():
 
 
 if __name__ == "__main__":
+    # Dev server only. Binds to loopback by default so the debugger (if enabled
+    # via FLASK_DEBUG=1) is never exposed on all interfaces; override with HOST.
+    # Production is served by gunicorn (see Dockerfile), which binds 0.0.0.0
+    # inside the container with debug disabled.
+    host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG", "0") == "1")
+    app.run(host=host, port=port, debug=os.environ.get("FLASK_DEBUG", "0") == "1")

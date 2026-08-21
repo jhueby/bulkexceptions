@@ -12,6 +12,9 @@ from app import app
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
+    # CSRF is exercised in the browser; disable it here so tests can POST
+    # directly without minting tokens.
+    app.config["WTF_CSRF_ENABLED"] = False
     with app.test_client() as c:
         yield c
 

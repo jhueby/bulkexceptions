@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>Cortex XDR Bulk Exceptions</title>
 <style>
   :root {
@@ -140,10 +141,12 @@
     </div>
     {% if connected %}
     <form method="post" action="/disconnect">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-ghost">Disconnect</button>
     </form>
     {% else %}
     <form method="post" action="/connect">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
         <label>Base URL</label>
         <input type="text" name="base_url" placeholder="https://api-yourfqdn" required>
@@ -275,7 +278,7 @@ async function doUpload() {
   el.textContent = '';
 
   try {
-    const resp = await fetch('/api/upload', { method: 'POST', body: form });
+    const resp = await fetch('/api/upload', { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: form });
     const data = await resp.json();
     if (data.error) {
       let msg = 'ERROR: ' + data.error + '\n';
@@ -337,7 +340,7 @@ async function doFetch() {
   try {
     const resp = await fetch('/api/fetch?' + params);
     const data = await resp.json();
-    if (data.error) { el.innerHTML = '<div class="result-area">' + data.error + '</div>'; return; }
+    if (data.error) { el.innerHTML = '<div class="result-area">' + esc(data.error) + '</div>'; return; }
 
     const rules = data.data || [];
     countEl.textContent = `Showing ${rules.length} of ${data.total_count ?? '?'} rules`;
@@ -362,7 +365,7 @@ async function doFetch() {
     html += '</tbody></table>';
     el.innerHTML = html;
   } catch (e) {
-    el.innerHTML = '<div class="result-area">Request failed: ' + e.message + '</div>';
+    el.innerHTML = '<div class="result-area">Request failed: ' + esc(e.message) + '</div>';
   } finally {
     setLoading('btn-fetch', false);
   }
@@ -383,7 +386,7 @@ async function doDelete() {
   try {
     const resp = await fetch('/api/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
       body: JSON.stringify({ rule_ids: ids }),
     });
     const data = await resp.json();
@@ -404,7 +407,7 @@ async function doModules() {
   try {
     const resp = await fetch('/api/modules');
     const data = await resp.json();
-    if (data.error) { el.innerHTML = '<div class="result-area">' + data.error + '</div>'; return; }
+    if (data.error) { el.innerHTML = '<div class="result-area">' + esc(data.error) + '</div>'; return; }
 
     const modules = Array.isArray(data) ? data : [];
     if (modules.length === 0) { el.innerHTML = '<div class="result-area">No modules found.</div>'; return; }
@@ -422,12 +425,13 @@ async function doModules() {
     }
     el.innerHTML = html;
   } catch (e) {
-    el.innerHTML = '<div class="result-area">Request failed: ' + e.message + '</div>';
+    el.innerHTML = '<div class="result-area">Request failed: ' + esc(e.message) + '</div>';
   } finally {
     setLoading('btn-modules', false);
   }
 }
 
+const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 </script>
 </body>
